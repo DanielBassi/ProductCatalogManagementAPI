@@ -1,0 +1,17 @@
+mode: ContinuousDeployment
+branches:
+  master:
+    regex: ^master$
+    tag: ''
+    increment: Minor
+    trackMergeTarget: true
+  feature:
+    regex: ^features?[/-]
+    tag: 'feature'
+    increment: Patch
+    trackMergeTarget: false
+  develop:
+    regex: ^develop$
+    tag: 'beta'
+    increment: Minor
+    trackMergeTarget: true

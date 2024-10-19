@@ -1,0 +1,104 @@
+name: Build, Version, Deploy, and Release
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0'
+
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v0.9.14
+      with:
+        versionSpec: '5.x'
+
+    - name: Determine Version
+      id: gitversion
+      run: dotnet-gitversion /output json > gitversion.json
+
+    - name: Read Version
+      id: read_version
+      run: echo "VERSION=$(jq -r .SemVer < gitversion.json)" >> $GITHUB_ENV
+
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+
+    - name: Install `conventional-changelog`
+      run: npm install -g conventional-changelog-cli
+
+    - name: Generate Changelog
+      run: conventional-changelog -p angular -i CHANGELOG.md -s -r 0
+
+    - name: Update Changelog with Version
+      run: |
+        VERSION=${{ env.VERSION }}
+        if ! grep -q "## [${VERSION}]" CHANGELOG.md; then
+          sed -i "1i## [${VERSION}] - $(date +'%Y-%m-%d')" CHANGELOG.md
+        fi
+        git config --global user.email "zluissiloxx@hotmail.com"
+        git config --global user.name "GitHub Actions"
+        git add CHANGELOG.md
+        if git diff --cached --quiet; then
+          echo "No changes to commit."
+        else
+          git commit -m "chore(release): update changelog with version $VERSION"
+          git push
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Log in to Azure Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: productcatalogmanagerapicontainerregistry.azurecr.io
+        username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
+        password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
+
+    - name: Build and push Docker images
+      run: |
+        docker build -t productcatalogmanagerapicontainerregistry.azurecr.io/productcatalogmanagerapi:${{ env.VERSION }} -f Api/Dockerfile .
+        docker push productcatalogmanagerapicontainerregistry.azurecr.io/productcatalogmanagerapi:${{ env.VERSION }}
+
+        docker build -t productcatalogmanagerapicontainerregistry.azurecr.io/productcatalogmanagerapi:latest -f Api/Dockerfile .
+        docker push productcatalogmanagerapicontainerregistry.azurecr.io/productcatalogmanagerapi:latest
+
+    - name: Log out from Azure Container Registry
+      run: docker logout productcatalogmanagerapicontainerregistry.azurecr.io
+
+    - name: Update database
+      run: |
+        dotnet tool install --global dotnet-ef
+        dotnet tool restore
+        dotnet ef database update -c DataContext -p Infrastructure/Infrastructure.csproj -s Api/Api.csproj
+      env:
+        ASPNETCORE_ENVIRONMENT: Production
+
+    - name: Create GitHub Release
+      id: create_release
+      run: |
+        VERSION=${{ env.VERSION }}
+        CHANGELOG_CONTENT=$(cat CHANGELOG.md)
+        gh release create "${VERSION}" --title "Release ${VERSION}" --notes "${CHANGELOG_CONTENT}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,99 @@
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- main
+
+pool:
+  name: Windows
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+- task: UseDotNet@2
+  displayName: 'Use .NET sdk 7.0.102'
+  inputs:
+    packageType: sdk
+    version: 7.0.102
+    installationPath: $(Agent.ToolsDirectory)/dotnet
+
+- task: PowerShell@2
+  displayName: 'Check for vulnerable packages'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $vul = dotnet list .\ofv_jira_backend.sln package --vulnerable | Select-String 'has the following'
+      if ($vul){
+        Exit -1
+      }
+      Exit 0
+    
+- task: DotNetCoreCLI@2
+  displayName: 'Install dotnet-stryker'
+  inputs:
+    command: custom
+    custom: tool
+    arguments: update dotnet-stryker --tool-path $(Agent.BuildDirectory)/tools
+
+- task: SonarQubePrepare@4
+  displayName: 'Prepare SonarQube'
+  inputs:
+    SonarQube: 'SonarQube'
+    scannerMode: 'MSBuild'
+    projectKey: 'co.com.ceiba:ofv_jira_backend'
+    projectName: 'ofv_jira_backend'
+    extraProperties: |
+      sonar.exclusions=Api/wwwroot/**,**/*Migrations*/*,**/*ModelConfig*/*
+      sonar.coverage.exclusions=**/*Exceptions*/*
+      
+- task: DotNetCoreCLI@2
+  displayName: 'Build solution'
+  inputs:
+    command: 'build'
+    projects: '**/*.sln'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Test solution'
+  inputs:
+    command: 'test'
+    projects: '**/*[Tt]est*/*.csproj'
+    arguments: '--configuration $(BuildConfiguration)  --collect "Code Coverage"'
+
+- task: Powershell@2
+  displayName: 'Run dotnet-stryker'
+  inputs:
+    workingDirectory: ofv_jira_backend.Domain.Tests
+    targetType: 'inline'  
+    script: $(Agent.BuildDirectory)/tools/dotnet-stryker 
+    #arguments: '--reporters ["html","json"]'
+
+- task: PublishMutationReport@0
+  displayName: 'Publish Mutation Test Report'
+  inputs:
+    reportPattern: '**/mutation-report.html'
+
+- task: SonarQubeAnalyze@4
+  displayName: 'Run SonarQube Analizer'
+
+- task: SonarQubePublish@4
+  displayName: 'Publish SonarQube results'
+  inputs:
+    pollingTimeoutSec: '300'
+
+- task: sonar-buildbreaker@8
+  displayName: 'Break pipeline on SonarQube QualityGate failure'
+  inputs:
+    SonarQube: 'SonarQube'
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish artifact'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
+
+    
+
