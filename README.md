@@ -22,8 +22,8 @@ Más información [aquí](https://www.thinktocode.com/2018/07/19/ports-and-adapt
 
 Patrón con el cual dividimos nuestro modelo de objetos en dos, un modelo para consulta(Query) y un modelo para comando(Command). Este patrón es recomendado cuando se va desarrollar lógica de negocio compleja porque nos ayuda a separar las responsabilidades y a mantener un modelo de negocio consistente.
 
-- Consulta: modelo a través del cual se divide la responsabilidad para presentar datos en la interfaz de usuario, los objetos se modelan basado en lo que se va a presentar y no en la lógica de negocio, ejm: ver facturas, consultar clientes. Para las consultas en esta plantilla usamos Dapper.
-- Comando: son todas las operaciones que cambian el estado del sistema, ejm: (facturar, aplicar descuento), este modelo se construye todo el modelo de objetos basado en la lógica de negocio de la aplicación. Las operaciones de cambio de estado del sistema las hacemos a traves de EntityFrameworkCore.
+- Consulta: modelo a través del cual se divide la responsabilidad para presentar datos en la interfaz de usuario, los objetos se modelan basado en lo que se va a presentar y no en la lógica de negocio.
+- Comando: son todas las operaciones que cambian el estado del sistema, este modelo se construye todo el modelo de objetos basado en la lógica de negocio de la aplicación. Las operaciones de cambio de estado del sistema las hacemos a traves de EntityFrameworkCore.
 
 Más información [aquí](https://docs.microsoft.com/en-us/azure/architecture/patterns/cqrs)
 
@@ -66,12 +66,3 @@ Solucion para VisualStudio(.sln) compuesta de los siguientes carpetas :
 - Application : Capa de orquestacion de servicios de dominio; Ports, Commands, Queries, Handlers
 - Infrastructure : Adapters
 - Domain : Entities, Value Objects, Ports, Domain Services, Aggregates
-
-### CI/CD:
-
-La solución utiliza:
-
-- Github action para despliegue automatico en app service de Azure
-- Docker, la aplicacion se encuentra dockerizada para que pueda ser desplegada facilmente
-- Gitversion como herramienta para manejo versionamiento automatico
-- Conventional-changelog como herramienta para la generacion changelog basada en la información semantica de la version (SemVer) obtenida de los commits
