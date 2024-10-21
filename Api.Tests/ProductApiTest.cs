@@ -69,7 +69,8 @@ public class ProductApiTest
         {
             var responseMessage = await request.Content.ReadAsStringAsync();
             Assert.True(request.StatusCode == HttpStatusCode.UnprocessableEntity &&
-                        responseMessage.Contains("The price must be greater than or equal to 1"));
+            responseMessage.Contains("El precio del producto debe ser mayor o igual a 1."));
+
         }
     }
 
